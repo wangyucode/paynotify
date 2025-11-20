@@ -43,11 +43,18 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import cn.wycode.pay_notify.ui.theme.PayNotifyTheme
+import androidx.core.content.edit
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val packageName = "cn.wycode.pay_notify"
+        val flat = Settings.Secure.getString(
+            this.contentResolver,
+            "enabled_notification_listeners"
+        )
+        Log.d("MainActivity", "enabled_notification_listeners: $flat")
         setContent {
             PayNotifyTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -66,32 +73,8 @@ fun NotificationLogScreen(modifier: Modifier = Modifier) {
     val notifications = remember { mutableStateListOf<String>() }
     var isServiceEnabled by remember { mutableStateOf(false) }
     var isProduction by remember { mutableStateOf(false) }
-    var hasNotificationPermission by remember { mutableStateOf(false) }
     // 获取当前上下文
     val context = LocalContext.current
-
-    // 请求通知权限的Launcher
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { isGranted ->
-            hasNotificationPermission = isGranted
-        }
-    )
-
-    // 检查通知权限
-    fun checkNotificationPermission() {
-        hasNotificationPermission = ContextCompat.checkSelfPermission(
-            context,
-            android.Manifest.permission.POST_NOTIFICATIONS
-        ) == PackageManager.PERMISSION_GRANTED
-    }
-
-    // 请求通知权限
-    fun requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
 
     // 检查当前环境设置
     fun checkCurrentEnvironment() {
@@ -122,9 +105,9 @@ fun NotificationLogScreen(modifier: Modifier = Modifier) {
     fun toggleEnvironment(isProduction: Boolean) {
         val sharedPreferences: SharedPreferences =
             context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-        sharedPreferences.edit()
-            .putBoolean("isProduction", isProduction)
-            .apply()
+        sharedPreferences.edit {
+            putBoolean("isProduction", isProduction)
+        }
     }
 
     // 初始化通知监听回调
@@ -136,14 +119,8 @@ fun NotificationLogScreen(modifier: Modifier = Modifier) {
         NotificationListener.onNotificationReceived = { notificationInfo ->
             notifications.add(0, notificationInfo)
         }
-//        checkNotificationPermission()
         checkNotificationListenerPermission()
         checkCurrentEnvironment()
-
-        // 如果没有通知权限，请求权限
-//        if (!hasNotificationPermission) {
-//            requestNotificationPermission()
-//        }
 
         if (!isServiceEnabled) {
             // 如果服务未启用，尝试请求权限
@@ -152,7 +129,6 @@ fun NotificationLogScreen(modifier: Modifier = Modifier) {
     }
 
     LifecycleResumeEffect(Unit) {
-//        checkNotificationPermission()
         checkNotificationListenerPermission()
         onPauseOrDispose {}
     }

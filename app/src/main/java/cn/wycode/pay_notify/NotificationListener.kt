@@ -22,8 +22,6 @@ class NotificationListener : NotificationListenerService() {
     companion object {
         val notifications = mutableListOf<String>()
         var onNotificationReceived: ((String) -> Unit)? = null
-        private const val CHANNEL_ID = "notification_listener_channel"
-        private const val NOTIFICATION_ID = 1001
 
         private const val TAG = "NotificationListener"
     }
@@ -31,39 +29,24 @@ class NotificationListener : NotificationListenerService() {
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "onCreate")
-        // 创建通知渠道（Android 8.0+）
-//        createNotificationChannel()
-        // 启动前台服务
-//        startForegroundService()
-    }
-
-    private fun createNotificationChannel() {
-        val name = "通知监听服务"
-        val descriptionText = "用于持续监听系统通知"
-        val importance = NotificationManager.IMPORTANCE_HIGH
-        val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
-            description = descriptionText
-        }
-        // 注册通知渠道
-        val notificationManager: NotificationManager =
-            getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        val channel = NotificationChannel(
+            "listener_channel",
+            "通知监听服务",
+            NotificationManager.IMPORTANCE_LOW
+        )
+        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.createNotificationChannel(channel)
-    }
-
-    private fun startForegroundService() {
-        val notificationBuilder = Notification.Builder(this, CHANNEL_ID)
-
-
-        val notification = notificationBuilder
-            .setContentTitle("青衿AI支付助手")
-            .setContentText("正在监听...")
+        val notification = Notification.Builder(this, "listener_channel")
+            .setContentTitle("支付通知服务运行中")
             .setSmallIcon(R.mipmap.ic_launcher)
             .build()
 
-        startForeground(NOTIFICATION_ID, notification)
+        startForeground(1, notification)
     }
 
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+        super.onNotificationPosted(sbn)
         Log.d(TAG, "收到通知: $sbn")
         val packageName = sbn.packageName
         if (!packageName.equals("com.tencent.mm")) return
@@ -71,7 +54,7 @@ class NotificationListener : NotificationListenerService() {
         val notification = sbn.notification
         val postTime = sbn.postTime
         val title = notification.extras.getString("android.title", "")
-//        if ("微信收款助手" != title) return
+        if ("微信收款助手" != title) return
 
         val text = notification.extras.getString("android.text", "")
         val currentTime =
@@ -79,19 +62,34 @@ class NotificationListener : NotificationListenerService() {
                 .format(java.util.Date(postTime))
         val notificationInfo = "$currentTime: $packageName\nTitle: $title\nText: $text"
         // 从"微信支付收款0.01元"中提取金额
-//        val amountRegex = "收款(\\d+\\.\\d+)元".toRegex()
-//        val matchResult = amountRegex.find(text) ?: return
+        val amountRegex = "收款(\\d+\\.\\d+)元".toRegex()
+        val matchResult = amountRegex.find(text) ?: return
 
-//        val amount = matchResult.groupValues[1]
-        val amount = "11.11" // 测试固定金额
+        val amount = matchResult.groupValues[1]
+//        val amount = "111.11" // 测试固定金额
         Log.d(TAG, notificationInfo)
-        Toast.makeText(this, "收到通知:\n$notificationInfo", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "$title\n$text", Toast.LENGTH_LONG).show()
         // 添加到通知列表
         notifications.add(0, notificationInfo) // 添加到开头，最新的在前面
         // 添加到界面
         onNotificationReceived?.invoke(notificationInfo)
         // 发送到服务器
         sendNotificationToServer(amount, postTime)
+    }
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        Log.d(TAG, "通知监听器已连接")
+    }
+
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        Log.d(TAG, "通知监听器已断开连接")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.d(TAG, "onDestroy")
     }
 
     private fun sendNotificationToServer(amount: String, postTime: Long) {
